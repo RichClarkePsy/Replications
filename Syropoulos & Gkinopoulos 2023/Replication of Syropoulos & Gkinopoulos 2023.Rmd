@@ -11,7 +11,8 @@ library(tidyverse)
 library(sjPlot)
 ```
 
-The 10th round of the Europe Social Survey was conducted partly face to face and partly online. As such there are two data files related to that round. these are loaded and combined with the code below. Data files were down from [The European Social Survey Data Portal](https://ess-search.nsd.no/en/study/172ac431-2a06-41df-9dab-c1fd8f3877e7)   
+The 10th round of the Europe Social Survey was conducted partly face to face and partly online. 
+As such there are two data files related to that round. these are loaded and combined with the code below. Data files were down from [The European Social Survey Data Portal](https://ess-search.nsd.no/en/study/172ac431-2a06-41df-9dab-c1fd8f3877e7)   
 
 ```{r, load data}
 ESS10 <- read_csv("ESS10.csv")
@@ -20,10 +21,11 @@ ESS10SC <- read_csv("ESS10SC.csv")
 
 raw_data <- bind_rows(ESS10,ESS10SC) %>%
   mutate(id = 1:59685)
-
 ```
 
-The following code replaces missing data codes with `NA`'s, reverse codes items, and calculates variables according to the authors specifications. The variables relevant for the analysis are then selected out into the data object `analysis_data`. The `dplyr` package (found within the `tidyverse`) is used throughout.     
+The following code replaces missing data codes with `NA`'s, reverse codes items, and calculates variables according to the authors specifications. 
+The variables relevant for the analysis are then selected out into the data object `analysis_data`. 
+The `dplyr` package (found within the `tidyverse`) is used throughout.     
 
 ```{r, data treament}
 analysis_data <- raw_data %>%
@@ -54,20 +56,14 @@ analysis_data <- raw_data %>%
          politic = lrscale,
          vax_uptake = if_else(getavc19 %in% c(1, 2), as.integer(1),
                  if_else(getavc19 == 3, as.integer(0), NA_integer_)),
-         vax_uptake2 = case_when(getavc19 %in% c(2) ~ as.integer(1),
-                                 getavc19 == 3 ~ as.integer(0),
-                                 getavc19 == 1 ~ NA_integer_,
-                                 TRUE ~ NA_integer_),
          covid_inf = if_else(respc19 == 1, as.integer(1),
                  if_else(respc19 %in% c(2, 3), as.integer(0), NA_integer_))) %>%
   select(id, cntry, anweight, trust_people:covid_inf) 
-
 ```
 
 The following code creates the data for figure 1
 
 ```{r, figure 1 data}
-
 figure_1_data <- analysis_data %>%
   group_by(cntry) %>%
   summarise(trust_people = mean(trust_people, na.rm = TRUE),
@@ -81,7 +77,6 @@ ordered_countries <- figure_1_data %>%
                       "EE", "FR", "ME")) %>%
   arrange(-trust_sci) %>%
   pull(cntry)
-
 ```
 
 The following code reproduces Figure 1 using the `ggplot2` package. 
@@ -130,7 +125,6 @@ mlogit_model_weighted <- glm(vax_uptake ~ trust_people +
                                covid_inf,
                              data = table2_data, family = binomial, 
                              weights = anweight)
-
 ```
 
 The following used the `sjPlot` package to present the above model in a table. 
@@ -152,6 +146,5 @@ tab_model(mlogit_model_weighted,
                           "Income Decile", 
                           "Age", 
                           "Previous COVID Infection (had=1)"))
-
 ```
 
