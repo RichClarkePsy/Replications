@@ -11,8 +11,7 @@ library(tidyverse)
 library(sjPlot)
 ```
 
-The 10th round of the Europe Social Survey was conducted partly face to face and partly online. 
-As such there are two data files related to that round. these are loaded and combined with the code below. Data files were down from [The European Social Survey Data Portal](https://ess-search.nsd.no/en/study/172ac431-2a06-41df-9dab-c1fd8f3877e7)   
+The 10th round of the Europe Social Survey was conducted partly face to face and partly online. As such there are two data files related to that round. These are loaded and combined with the code below. Data files were down from [The European Social Survey Data Portal](https://ess-search.nsd.no/en/study/172ac431-2a06-41df-9dab-c1fd8f3877e7)   
 
 ```{r, load data}
 ESS10 <- read_csv("ESS10.csv")
@@ -23,9 +22,7 @@ raw_data <- bind_rows(ESS10,ESS10SC) %>%
   mutate(id = 1:59685)
 ```
 
-The following code replaces missing data codes with `NA`'s, reverse codes items, and calculates variables according to the authors specifications. 
-The variables relevant for the analysis are then selected out into the data object `analysis_data`. 
-The `dplyr` package (found within the `tidyverse`) is used throughout.     
+The following code replaces missing data codes with `NA`'s, reverse codes items, and calculates variables according to the authors specifications. The variables relevant for the analysis are then selected out into the data object `analysis_data`. The `dplyr` package (found within the `tidyverse`) is used throughout.     
 
 ```{r, data treament}
 analysis_data <- raw_data %>%
