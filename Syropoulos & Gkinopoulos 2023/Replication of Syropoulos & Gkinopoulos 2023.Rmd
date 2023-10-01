@@ -1,0 +1,157 @@
+---
+title: "Syropoulos replication"
+author: "Dr Richard Clarke"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, load packages}
+library(tidyverse)
+library(sjPlot)
+```
+
+The 10th round of the Europe Social Survey was conducted partly face to face and partly online. As such there are two data files related to that round. these are loaded and combined with the code below. Data files were down from [The European Social Survey Data Portal](https://ess-search.nsd.no/en/study/172ac431-2a06-41df-9dab-c1fd8f3877e7)   
+
+```{r, load data}
+ESS10 <- read_csv("ESS10.csv")
+
+ESS10SC <- read_csv("ESS10SC.csv")
+
+raw_data <- bind_rows(ESS10,ESS10SC) %>%
+  mutate(id = 1:59685)
+
+```
+
+The following code replaces missing data codes with `NA`'s, reverse codes items, and calculates variables according to the authors specifications. The variables relevant for the analysis are then selected out into the data object `analysis_data`. The `dplyr` package (found within the `tidyverse`) is used throughout.     
+
+```{r, data treament}
+analysis_data <- raw_data %>%
+  mutate(across(c(ppltrst, pplfair, pplhlp, trstprl, trstplt, 
+                  trstprt, trstep, trstun, trstsci,
+                  eduyrs, hinctnta, rlgdgr, lrscale),
+                ~replace(., . %in% c(77, 88, 99), NA)),
+         across(c(gvconc19, secgrdec, scidecpb, gndr, respc19), 
+                ~replace(., . %in% c(7, 8, 9), NA)),
+         across(c(getavc19),
+                ~replace(., . %in% c(6, 7, 8, 9), NA)),
+         across(c(agea), 
+                ~replace(., . %in% c(999), NA))) %>%
+  mutate(gvconc19_reversed = 6 - gvconc19,
+         secgrdec_reversed = 6 - secgrdec,
+         scidecpb_reversed = 6 - scidecpb,
+         gndr = if_else(gndr == 2, 0, 1)) %>%
+  mutate(trust_people = rowMeans(select(., ppltrst, pplfair, pplhlp), na.rm = TRUE),
+         political_trust = rowMeans(select(., trstprl, trstplt, trstprt), na.rm = TRUE),
+         trust_IO = rowMeans(select(., trstep, trstun), na.rm = TRUE),
+         trust_sci = trstsci,
+         con_belief = rowMeans(select(., gvconc19_reversed, secgrdec_reversed, scidecpb_reversed), na.rm = TRUE),
+         edu_years = eduyrs,
+         income_decile = hinctnta,
+         gender = gndr,
+         age = agea,
+         religiosity = rlgdgr,
+         politic = lrscale,
+         vax_uptake = if_else(getavc19 %in% c(1, 2), as.integer(1),
+                 if_else(getavc19 == 3, as.integer(0), NA_integer_)),
+         vax_uptake2 = case_when(getavc19 %in% c(2) ~ as.integer(1),
+                                 getavc19 == 3 ~ as.integer(0),
+                                 getavc19 == 1 ~ NA_integer_,
+                                 TRUE ~ NA_integer_),
+         covid_inf = if_else(respc19 == 1, as.integer(1),
+                 if_else(respc19 %in% c(2, 3), as.integer(0), NA_integer_))) %>%
+  select(id, cntry, anweight, trust_people:covid_inf) 
+
+```
+
+The following code creates the data for figure 1
+
+```{r, figure 1 data}
+
+figure_1_data <- analysis_data %>%
+  group_by(cntry) %>%
+  summarise(trust_people = mean(trust_people, na.rm = TRUE),
+            political_trust = mean(political_trust, na.rm = TRUE),
+            trust_IO = mean(trust_IO, na.rm = TRUE),
+            trust_sci = mean(trust_sci, na.rm = TRUE)) 
+
+ordered_countries <- figure_1_data %>%
+  filter(cntry %in% c("IS", "FI", "NL", "PT", "NO", "GR", "LT", "SI",
+                      "CH", "IT", "HU", "HR", "BG", "SK", "MK", "CZ", 
+                      "EE", "FR", "ME")) %>%
+  arrange(-trust_sci) %>%
+  pull(cntry)
+
+```
+
+The following code reproduces Figure 1 using the `ggplot2` package. 
+
+```{r, figure 1 ggplot}
+figure_1_data %>%
+  pivot_longer(cols = trust_people:trust_sci, names_to = "trust", values_to = "score")%>% 
+  mutate(cntry = factor(cntry, levels = ordered_countries)) %>%
+  filter(!is.na(cntry)) %>%
+  ggplot(aes(x = cntry, y = score, group = trust)) +
+  geom_point(aes(colour = factor(trust))) +
+  geom_line(aes(colour = factor(trust)), size = 0.8) +
+  scale_x_discrete(name = "") +
+  scale_y_continuous(limits = c(0, 10),
+                     breaks = 0:10,
+                     name = "") +
+  ggtitle("Figure 1: Average Scores for Each type of Trust in Each Country") +
+  scale_colour_manual(name = "",
+                      values = c("darkred", "darkgreen", "darkblue","black"),
+                      labels = c("Political Trust", "Trust in International Organisations",
+                                 "Trust in People", "Trust in Science")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+The following code creates models the logistic regression reported in Table 2.
+
+```{r, table 2 data}
+table2_data <- analysis_data %>%
+  filter(cntry %in% c("BG", "CH", "CZ", "EE", "FI", "GR", "HR", "HU",
+                      "IS", "IT", "LT", "MK", "NL", "NO", "PT", "SI", 
+                      "SK")) 
+
+mlogit_model_weighted <- glm(vax_uptake ~ trust_people + 
+                               political_trust +
+                               trust_IO +
+                               trust_sci +
+                               con_belief +
+                               politic +
+                               religiosity +
+                               gender +
+                               edu_years +
+                               income_decile + 
+                               age + 
+                               covid_inf,
+                             data = table2_data, family = binomial, 
+                             weights = anweight)
+
+```
+
+The following used the `sjPlot` package to present the above model in a table. 
+
+```{r, table 2 sjPlot}
+tab_model(mlogit_model_weighted,
+          show.intercept = FALSE,
+          dv.labels = "",
+          title = "Table 2: Logistic regression model predicting receiving or wanting to receive the COVID-10 vaccine",
+          pred.labels = c("Trust in People", 
+                          "Political Trust", 
+                          "Trust in Int Orgs", 
+                          "Trust in Science",
+                          "Conspiracy Beliefs", 
+                          "Right-wing ideology", 
+                          "Religiosity",
+                          "Gender (male = 1)",
+                          "Years of Education", 
+                          "Income Decile", 
+                          "Age", 
+                          "Previous COVID Infection (had=1)"))
+
+```
+
